@@ -10,6 +10,7 @@ import {
   addOrUpdateArrayField,
   connect,
   disconnect,
+  clearArrayField,
 } from "./mongo.js";
 import { removeFile } from "./utils.js";
 
@@ -33,6 +34,12 @@ bot.command("new", async (ctx) => {
 bot.command("start", async (ctx) => {
   ctx.session = INITIAL_SESSION;
   await ctx.reply("I am waiting your voice or text message");
+});
+
+bot.command("clear", async (ctx) => {
+  const user = await findOrCreateUser(ctx.chat);
+  await clearArrayField(user.id, "messages");
+  await ctx.reply("I succesfully clearened up all your context");
 });
 
 bot.on(message("voice"), async (ctx) => {
@@ -101,6 +108,15 @@ bot.on(message("text"), async (ctx) => {
     );
 
     const response = await openai.chat(updatedUser.messages);
+
+    if (!response) {
+      console.error("OpenAI API returned undefined");
+      return;
+    }
+    if (!response.content) {
+      console.error("OpenAI API response does not contain 'content'");
+      return;
+    }
 
     const gptAnswer = {
       role: openai.roles.ASSISTANT,

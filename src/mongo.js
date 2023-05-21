@@ -1,5 +1,12 @@
 import { MongoClient } from "mongodb";
 
+const MONGODB = process.env.MONGODB;
+
+if (!MONGODB) {
+	console.log(`${new Date()} - Missing enviroment variable: MONGODB`);
+	process.exit(2);
+}
+
 // Client is now scoped at the module level instead of globally
 let client;
 
@@ -18,10 +25,10 @@ export async function connect() {
   }
   try {
     await client.connect();
-    console.log("Connected to MongoDB successfully");
+    console.log(`${new Date()} - Connected to MongoDB successfully`);
   } catch (err) {
-    console.error("Error connecting to MongoDB:", err);
-    process.exit(1);
+    console.error(`${new Date()} - Error connecting to MongoDB: ${err}`);
+    throw err;
   }
 }
 
@@ -34,7 +41,7 @@ export async function connect() {
 export async function disconnect() {
   if (client) {
     await client.close();
-    console.log("Disconnected from MongoDB successfully");
+    console.log(`${new Date()} - Disconnected from MongoDB successfully`);
   }
 }
 
@@ -64,7 +71,8 @@ export async function findOrCreateUser(userData) {
     // console.log(user);
     return user;
   } catch (error) {
-    console.error("Error finding or creating user:", error);
+    console.error(`${new Date()} - Error finding or creating user: ${error}`);
+	throw err;
   }
 }
 
@@ -104,6 +112,35 @@ export async function addOrUpdateArrayField(
     // Return the updated user
     return await collection.findOne({ id: userId });
   } catch (error) {
-    console.error("Error updating array field:", error.message);
+    console.error(`${new Date()} - Error updating array field: ${error.message}`);
+	throw err
   }
 }
+
+/**
+ * Clears an array field for a user.
+ *
+ * @async
+ * @param {string} userId - The user id.
+ * @param {string} arrayFieldName - The array field name.
+ * @returns {Promise<Object>} The updated user document.
+ */
+export async function clearArrayField(userId, arrayFieldName) {
+	try {
+	  const db = client.db("Telegram"); // Accessing Telegram database
+	  const collection = db.collection("Users"); // Accessing Users collection
+  
+	  // Update the user document by setting the array field to an empty array
+	  await collection.updateOne(
+		{ id: userId },
+		{ $set: { [arrayFieldName]: [] } }
+	  );
+  
+	  // Return the updated user
+	  return await collection.findOne({ id: userId });
+	} catch (error) {
+	  console.error(`${new Date()} - Error clearing array field: ${error.message}`);
+	  throw error;
+	}
+  }
+  
