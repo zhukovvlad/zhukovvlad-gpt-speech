@@ -27,7 +27,7 @@ class OpenAI {
       });
       return response.data.choices[0].message;
     } catch (error) {
-      console.log("Error while chat GPT", error.message);
+      console.log(`${new Date()} - Error while chat GPT: ${error.message}`);
     }
   }
 

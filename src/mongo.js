@@ -63,7 +63,7 @@ export async function findOrCreateUser(userData) {
 
     // If the user doesn't exist, create the user
     if (!user) {
-      const result = await collection.insertOne(userData);
+      await collection.insertOne(userData);
       //   console.log(result);
       user = await collection.findOne({ id: userData.id });
     }

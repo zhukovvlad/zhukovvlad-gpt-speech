@@ -16,23 +16,18 @@ import { removeFile } from "./utils.js";
 
 dotenv.config();
 
-const INITIAL_SESSION = {
-  messages: [],
-};
+// const INITIAL_SESSION = {
+//   messages: [],
+// };
 
 connect();
 
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
 
-bot.use(session());
-
-bot.command("new", async (ctx) => {
-  ctx.session = INITIAL_SESSION;
-  await ctx.reply("I am waiting your voice or text message");
-});
+// bot.use(session());
 
 bot.command("start", async (ctx) => {
-  ctx.session = INITIAL_SESSION;
+  // ctx.session = INITIAL_SESSION;
   await ctx.reply("I am waiting your voice or text message");
 });
 
@@ -43,7 +38,7 @@ bot.command("clear", async (ctx) => {
 });
 
 bot.on(message("voice"), async (ctx) => {
-  ctx.session ??= INITIAL_SESSION;
+  // ctx.session ??= INITIAL_SESSION;
   const user = await findOrCreateUser(ctx.chat);
   try {
     await ctx.reply(
@@ -64,9 +59,18 @@ bot.on(message("voice"), async (ctx) => {
       userQuestion
     );
 
-    ctx.session.messages.push({ role: openai.roles.USER, content: text });
+    // ctx.session.messages.push({ role: openai.roles.USER, content: text });
     const response = await openai.chat(updatedUser.messages);
     await removeFile(mp3Path);
+
+    if (!response) {
+      console.error(`${new Date()} - OpenAI API voice chat returned undefined`);
+      return;
+    }
+    if (!response.content) {
+      console.error(`${new Date()} - OpenAI API voice chat response does not contain 'content'`);
+      return;
+    }
 
     const gptAnswer = {
       role: openai.roles.ASSISTANT,
@@ -75,10 +79,10 @@ bot.on(message("voice"), async (ctx) => {
 
     await addOrUpdateArrayField(user.id, "messages", gptAnswer);
 
-    ctx.session.messages.push({
-      role: openai.roles.ASSISTANT,
-      content: response.content,
-    });
+    // ctx.session.messages.push({
+    //   role: openai.roles.ASSISTANT,
+    //   content: response.content,
+    // });
     await ctx.reply(response.content);
   } catch (error) {
     console.log("Error while voice message", error.message);
@@ -86,7 +90,7 @@ bot.on(message("voice"), async (ctx) => {
 });
 
 bot.on(message("text"), async (ctx) => {
-  ctx.session ??= INITIAL_SESSION;
+  // ctx.session ??= INITIAL_SESSION;
   const user = await findOrCreateUser(ctx.chat);
   // console.log(user);
   // const data = { id: user.id, count: user.count ? ++user.count : 1 };
@@ -98,7 +102,7 @@ bot.on(message("text"), async (ctx) => {
 
     const text = ctx.message.text;
 
-    ctx.session.messages.push({ role: openai.roles.USER, content: text });
+    // ctx.session.messages.push({ role: openai.roles.USER, content: text });
 
     const userQuestion = { role: openai.roles.USER, content: text };
     const updatedUser = await addOrUpdateArrayField(
@@ -110,11 +114,11 @@ bot.on(message("text"), async (ctx) => {
     const response = await openai.chat(updatedUser.messages);
 
     if (!response) {
-      console.error("OpenAI API returned undefined");
+      console.error(`${new Date()} - OpenAI API text chat returned undefined`);
       return;
     }
     if (!response.content) {
-      console.error("OpenAI API response does not contain 'content'");
+      console.error(`${new Date()} - OpenAI API voice chat response does not contain 'content'`);
       return;
     }
 
@@ -125,10 +129,10 @@ bot.on(message("text"), async (ctx) => {
 
     await addOrUpdateArrayField(user.id, "messages", gptAnswer);
 
-    ctx.session.messages.push({
-      role: openai.roles.ASSISTANT,
-      content: response.content,
-    });
+    // ctx.session.messages.push({
+    //   role: openai.roles.ASSISTANT,
+    //   content: response.content,
+    // });
     await ctx.reply(response.content);
   } catch (error) {
     console.log("Error while text message", error.message);
