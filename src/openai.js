@@ -14,7 +14,7 @@ class OpenAI {
 
   constructor(apiKey) {
     const configuration = new Configuration({
-      apiKey: process.env.OPENAI_API_KEY,
+      apiKey: apiKey,
     });
     this.openai = new OpenAIApi(configuration);
   }
@@ -27,7 +27,8 @@ class OpenAI {
       });
       return response.data.choices[0].message;
     } catch (error) {
-      console.log(`${new Date()} - Error while chat GPT: ${error.message}`);
+      console.error(`${new Date()} - Error while chat GPT: ${error.message}`);
+      throw error;
     }
   }
 
@@ -39,7 +40,12 @@ class OpenAI {
       );
       return response.data.text;
     } catch (error) {
-      console.log("Error while transcription", error.message);
+      console.log(
+        `${new Date()} - Error while transcription from voice to text ${
+          error.message
+        }`
+      );
+      throw error;
     }
   }
 }

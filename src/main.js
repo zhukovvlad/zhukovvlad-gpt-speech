@@ -59,8 +59,13 @@ bot.on(message("voice"), async (ctx) => {
       userQuestion
     );
 
+    ctx.sendChatAction("typing");
+
     // ctx.session.messages.push({ role: openai.roles.USER, content: text });
     const response = await openai.chat(updatedUser.messages);
+
+    ctx.sendChatAction("typing");
+
     await removeFile(mp3Path);
 
     if (!response) {
@@ -68,7 +73,9 @@ bot.on(message("voice"), async (ctx) => {
       return;
     }
     if (!response.content) {
-      console.error(`${new Date()} - OpenAI API voice chat response does not contain 'content'`);
+      console.error(
+        `${new Date()} - OpenAI API voice chat response does not contain 'content'`
+      );
       return;
     }
 
@@ -111,14 +118,20 @@ bot.on(message("text"), async (ctx) => {
       userQuestion
     );
 
+    ctx.sendChatAction("typing");
+
     const response = await openai.chat(updatedUser.messages);
+
+    ctx.sendChatAction("typing");
 
     if (!response) {
       console.error(`${new Date()} - OpenAI API text chat returned undefined`);
       return;
     }
     if (!response.content) {
-      console.error(`${new Date()} - OpenAI API voice chat response does not contain 'content'`);
+      console.error(
+        `${new Date()} - OpenAI API voice chat response does not contain 'content'`
+      );
       return;
     }
 
