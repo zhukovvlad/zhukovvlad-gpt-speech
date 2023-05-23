@@ -40,7 +40,7 @@ class OpenAI {
       );
       return response.data.text;
     } catch (error) {
-      console.log(
+      console.error(
         `${new Date()} - Error while transcription from voice to text ${
           error.message
         }`

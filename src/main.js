@@ -1,6 +1,7 @@
-import { Telegraf, session } from "telegraf";
+import { Telegraf, Markup, session } from "telegraf";
 import { message } from "telegraf/filters";
 import { code } from "telegraf/format";
+import * as fs from "fs"
 import * as dotenv from "dotenv";
 import { ogg } from "./ogg.js";
 import { openai } from "./openai.js";
@@ -25,10 +26,43 @@ connect();
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
 
 // bot.use(session());
+bot.telegram.setMyCommands([
+  {
+    command: "start",
+    description: "Start bot command",
+  },
+  {
+    command: "clear",
+    description: "clear chat context with chatGPT",
+  },
+]);
 
 bot.command("start", async (ctx) => {
   // ctx.session = INITIAL_SESSION;
-  await ctx.reply("I am waiting your voice or text message");
+
+  await ctx.reply(
+    `Greetings *${ctx.message.from.first_name}*! Here you can ask questions to the GPT chat, using text or voice messages. Unfortunately, we have not yet gained access to the *GPT-4* API and are using the "gpt-3.5-turbo" model for responses.`,
+    {
+      parse_mode: "Markdown",
+      ...Markup.inlineKeyboard([
+        Markup.button.callback("Опция 1", "OPTION_1"),
+        Markup.button.callback("Опция 2", "OPTION_2"),
+      ]),
+    }
+  );
+});
+
+bot.action("OPTION_1", (ctx) => ctx.answerCbQuery("Вы выбрали опцию 1"));
+bot.action("OPTION_2", (ctx) => ctx.answerCbQuery("Вы выбрали опцию 2"));
+
+bot.command('upload', async (ctx) => {
+  try {
+    const photo = fs.readFileSync('./src/assets/image.png');
+    const result = await ctx.replyWithPhoto({ source: photo });
+    console.log(result.photo);
+  } catch (error) {
+    console.error(error);
+  }
 });
 
 bot.command("clear", async (ctx) => {
@@ -59,38 +93,63 @@ bot.on(message("voice"), async (ctx) => {
       userQuestion
     );
 
-    ctx.sendChatAction("typing");
+    // ctx.sendChatAction("typing");
 
     // ctx.session.messages.push({ role: openai.roles.USER, content: text });
-    const response = await openai.chat(updatedUser.messages);
+    await ctx.persistentChatAction("typing", async () => {
+      const response = await openai.chat(updatedUser.messages);
 
-    ctx.sendChatAction("typing");
+      if (!response) {
+        console.error(
+          `${new Date()} - OpenAI API voice chat returned undefined`
+        );
+        return;
+      }
+      if (!response.content) {
+        console.error(
+          `${new Date()} - OpenAI API voice chat response does not contain 'content'`
+        );
+        return;
+      }
+
+      const gptAnswer = {
+        role: openai.roles.ASSISTANT,
+        content: response.content,
+      };
+
+      await addOrUpdateArrayField(user.id, "messages", gptAnswer);
+
+      await ctx.reply(response.content);
+    });
+    // const response = await openai.chat(updatedUser.messages);
+
+    // ctx.sendChatAction("typing");
 
     await removeFile(mp3Path);
 
-    if (!response) {
-      console.error(`${new Date()} - OpenAI API voice chat returned undefined`);
-      return;
-    }
-    if (!response.content) {
-      console.error(
-        `${new Date()} - OpenAI API voice chat response does not contain 'content'`
-      );
-      return;
-    }
+    // if (!response) {
+    //   console.error(`${new Date()} - OpenAI API voice chat returned undefined`);
+    //   return;
+    // }
+    // if (!response.content) {
+    //   console.error(
+    //     `${new Date()} - OpenAI API voice chat response does not contain 'content'`
+    //   );
+    //   return;
+    // }
 
-    const gptAnswer = {
-      role: openai.roles.ASSISTANT,
-      content: response.content,
-    };
+    // const gptAnswer = {
+    //   role: openai.roles.ASSISTANT,
+    //   content: response.content,
+    // };
 
-    await addOrUpdateArrayField(user.id, "messages", gptAnswer);
+    // await addOrUpdateArrayField(user.id, "messages", gptAnswer);
 
     // ctx.session.messages.push({
     //   role: openai.roles.ASSISTANT,
     //   content: response.content,
     // });
-    await ctx.reply(response.content);
+    // await ctx.reply(response.content);
   } catch (error) {
     console.log("Error while voice message", error.message);
   }
