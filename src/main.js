@@ -1,7 +1,7 @@
 import { Telegraf, Markup, session } from "telegraf";
 import { message } from "telegraf/filters";
 import { code } from "telegraf/format";
-import * as fs from "fs"
+import * as fs from "fs";
 import * as dotenv from "dotenv";
 import { ogg } from "./ogg.js";
 import { openai } from "./openai.js";
@@ -39,31 +39,28 @@ bot.telegram.setMyCommands([
 
 bot.command("start", async (ctx) => {
   // ctx.session = INITIAL_SESSION;
+  try {
+    const photoPath = fs.readFileSync("./src/assets/image.png");
 
-  await ctx.reply(
-    `Greetings *${ctx.message.from.first_name}*! Here you can ask questions to the GPT chat, using text or voice messages. Unfortunately, we have not yet gained access to the *GPT-4* API and are using the "gpt-3.5-turbo" model for responses.`,
-    {
-      parse_mode: "Markdown",
-      ...Markup.inlineKeyboard([
-        Markup.button.callback("Опция 1", "OPTION_1"),
-        Markup.button.callback("Опция 2", "OPTION_2"),
-      ]),
-    }
-  );
+    await ctx.replyWithPhoto(
+      { source: photoPath },
+      {
+        caption: `Greetings *${ctx.message.from.first_name}*! Here you can ask questions to the GPT chat, using text or voice messages. Unfortunately, we have not yet gained access to the *GPT-4* API and are using the "gpt-3.5-turbo" model for responses.`,
+        parse_mode: "Markdown",
+        ...Markup.inlineKeyboard([
+          Markup.button.callback("Опция 1", "OPTION_1"),
+          Markup.button.callback("Опция 2", "OPTION_2"),
+        ]),
+      }
+    );
+  } catch (error) {
+    console.error(`${new Date()} - Something went wrong while start`);
+    throw error;
+  }
 });
 
 bot.action("OPTION_1", (ctx) => ctx.answerCbQuery("Вы выбрали опцию 1"));
 bot.action("OPTION_2", (ctx) => ctx.answerCbQuery("Вы выбрали опцию 2"));
-
-bot.command('upload', async (ctx) => {
-  try {
-    const photo = fs.readFileSync('./src/assets/image.png');
-    const result = await ctx.replyWithPhoto({ source: photo });
-    console.log(result.photo);
-  } catch (error) {
-    console.error(error);
-  }
-});
 
 bot.command("clear", async (ctx) => {
   const user = await findOrCreateUser(ctx.chat);
