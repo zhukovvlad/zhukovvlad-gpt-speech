@@ -53,7 +53,7 @@ class OpenAI {
     try {
       const response = await this.openai.createImage({
         prompt: message,
-        n: 2,
+        n: 1,
         size: "1024x1024",
       });
       console.log(response.data)
