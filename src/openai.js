@@ -48,6 +48,23 @@ class OpenAI {
       throw error;
     }
   }
+
+  async makeImage(message) {
+    try {
+      const response = await this.openai.createImage({
+        prompt: message,
+        n: 2,
+        size: "1024x1024",
+      });
+      console.log(response.data)
+      return response.data.data[0].url;
+    } catch (error) {
+      console.error(
+        `${new Date()} - Error while creating image ${error.message}`
+      );
+      throw error;
+    }
+  }
 }
 
 export const openai = new OpenAI(process.env.OPENAI_API_KEY);

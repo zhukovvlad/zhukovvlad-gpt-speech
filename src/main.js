@@ -1,4 +1,4 @@
-import { Telegraf, Markup, session } from "telegraf";
+import { Telegraf, Markup, session, Scenes } from "telegraf";
 import { message } from "telegraf/filters";
 import { code } from "telegraf/format";
 import * as fs from "fs";
@@ -25,6 +25,31 @@ connect();
 
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
 
+const { BaseScene, Stage } = Scenes;
+
+const paintScene = new BaseScene("paint");
+
+paintScene.enter((ctx) => {
+  ctx.reply(
+    "You have entered the paint mode! Write any promt you want. For exit from this mode use command '/quit'"
+  );
+});
+paintScene.on(message("text"), async (ctx) => {
+  if (ctx.message.text === "/quit") {
+    ctx.scene.leave();
+    ctx.reply("You have left the paint mode");
+  } else {
+    ctx.reply("I received your promt. Let's try to draw it!");
+    const response = await openai.makeImage(ctx.message.text);
+    await ctx.replyWithPhoto(response);
+  }
+});
+paintScene.command("quit", (ctx) => ctx.scene.leave());
+
+const stage = new Stage([paintScene]);
+bot.use(session());
+bot.use(stage.middleware());
+
 // bot.use(session());
 bot.telegram.setMyCommands([
   {
@@ -34,6 +59,10 @@ bot.telegram.setMyCommands([
   {
     command: "clear",
     description: "clear chat context with chatGPT",
+  },
+  {
+    command: "paint",
+    description: "give your promt and get result",
   },
 ]);
 
@@ -47,10 +76,10 @@ bot.command("start", async (ctx) => {
       {
         caption: `Greetings *${ctx.message.from.first_name}*! Here you can ask questions to the GPT chat, using text or voice messages. Unfortunately, we have not yet gained access to the *GPT-4* API and are using the "gpt-3.5-turbo" model for responses.`,
         parse_mode: "Markdown",
-        ...Markup.inlineKeyboard([
-          Markup.button.callback("Опция 1", "OPTION_1"),
-          Markup.button.callback("Опция 2", "OPTION_2"),
-        ]),
+        // ...Markup.inlineKeyboard([
+        //   Markup.button.callback("Опция 1", "OPTION_1"),
+        //   Markup.button.callback("Опция 2", "OPTION_2"),
+        // ]),
       }
     );
   } catch (error) {
@@ -61,6 +90,8 @@ bot.command("start", async (ctx) => {
 
 bot.action("OPTION_1", (ctx) => ctx.answerCbQuery("Вы выбрали опцию 1"));
 bot.action("OPTION_2", (ctx) => ctx.answerCbQuery("Вы выбрали опцию 2"));
+
+bot.command("paint", (ctx) => ctx.scene.enter("paint"));
 
 bot.command("clear", async (ctx) => {
   const user = await findOrCreateUser(ctx.chat);
@@ -149,6 +180,8 @@ bot.on(message("voice"), async (ctx) => {
     // await ctx.reply(response.content);
   } catch (error) {
     console.log("Error while voice message", error.message);
+    ctx.reply(`${new Date()} - OpenAI API voice chat returned error. ${error.message}`)
+    throw error
   }
 });
 
@@ -186,7 +219,7 @@ bot.on(message("text"), async (ctx) => {
     }
     if (!response.content) {
       console.error(
-        `${new Date()} - OpenAI API voice chat response does not contain 'content'`
+        `${new Date()} - OpenAI API text chat response does not contain 'content'`
       );
       return;
     }
