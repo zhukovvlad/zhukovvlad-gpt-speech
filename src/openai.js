@@ -56,7 +56,6 @@ class OpenAI {
         n: 1,
         size: "1024x1024",
       });
-      console.log(response.data)
       return response.data.data[0].url;
     } catch (error) {
       console.error(

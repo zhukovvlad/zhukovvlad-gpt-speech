@@ -77,7 +77,7 @@ export async function findOrCreateUser(userData) {
 }
 
 /**
- * Adds or updates an array field for a user.
+ * Adds or updates an array field inside database for a user.
  *
  * @async
  * @param {string} userId - The user id.

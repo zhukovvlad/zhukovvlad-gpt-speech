@@ -40,8 +40,52 @@ paintScene.on(message("text"), async (ctx) => {
     ctx.reply("You have left the paint mode");
   } else {
     ctx.reply("I received your promt. Let's try to draw it!");
+
     const response = await openai.makeImage(ctx.message.text);
     await ctx.replyWithPhoto(response);
+  }
+});
+
+paintScene.on(message("voice"), async (ctx) => {
+  const user = await findOrCreateUser(ctx.chat);
+
+  await ctx.reply(
+    code("I received your message. Waiting response from server")
+  );
+  const link = await ctx.telegram.getFileLink(ctx.message.voice.file_id);
+  const userId = String(ctx.message.from.id);
+  const oggPath = await ogg.create(link.href, userId);
+  const mp3Path = await ogg.toMp3(oggPath, userId);
+
+  const text = await openai.transcription(mp3Path);
+  await ctx.reply(code(`Your message is: ${text}`));
+
+  await ctx.persistentChatAction("typing", async () => {
+    const response = await openai.makeImage(text);
+
+  if (!response) {
+    console.error(
+      `${new Date()} - OpenAI API voice chat returned undefined`
+    );
+    return;
+  }
+
+  // const gptAnswer = {
+  //   role: openai.roles.ASSISTANT,
+  //   content: response.content,
+  // };
+  // await addOrUpdateArrayField(user.id, "messages", gptAnswer);
+  await ctx.replyWithPhoto(response);
+  });
+
+  await removeFile(mp3Path);
+  try {
+  } catch (error) {
+    console.log("Error while voice message", error.message);
+    ctx.reply(
+      `${new Date()} - OpenAI API voice chat returned error. ${error.message}`
+    );
+    throw error;
   }
 });
 paintScene.command("quit", (ctx) => ctx.scene.leave());
@@ -180,8 +224,10 @@ bot.on(message("voice"), async (ctx) => {
     // await ctx.reply(response.content);
   } catch (error) {
     console.log("Error while voice message", error.message);
-    ctx.reply(`${new Date()} - OpenAI API voice chat returned error. ${error.message}`)
-    throw error
+    ctx.reply(
+      `${new Date()} - OpenAI API voice chat returned error. ${error.message}`
+    );
+    throw error;
   }
 });
 
