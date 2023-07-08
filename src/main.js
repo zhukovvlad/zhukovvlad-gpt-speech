@@ -63,19 +63,17 @@ paintScene.on(message("voice"), async (ctx) => {
   await ctx.persistentChatAction("typing", async () => {
     const response = await openai.makeImage(text);
 
-  if (!response) {
-    console.error(
-      `${new Date()} - OpenAI API voice chat returned undefined`
-    );
-    return;
-  }
+    if (!response) {
+      console.error(`${new Date()} - OpenAI API voice chat returned undefined`);
+      return;
+    }
 
-  // const gptAnswer = {
-  //   role: openai.roles.ASSISTANT,
-  //   content: response.content,
-  // };
-  // await addOrUpdateArrayField(user.id, "messages", gptAnswer);
-  await ctx.replyWithPhoto(response);
+    // const gptAnswer = {
+    //   role: openai.roles.ASSISTANT,
+    //   content: response.content,
+    // };
+    // await addOrUpdateArrayField(user.id, "messages", gptAnswer);
+    await ctx.replyWithPhoto(response);
   });
 
   await removeFile(mp3Path);
@@ -141,6 +139,13 @@ bot.command("clear", async (ctx) => {
   const user = await findOrCreateUser(ctx.chat);
   await clearArrayField(user.id, "messages");
   await ctx.reply("I succesfully clearened up all your context");
+});
+
+bot.command("models", async (ctx) => {
+  await openai.askModels();
+  await ctx.reply(
+    "I've asked for all possible chat models. Look into your console"
+  );
 });
 
 bot.on(message("voice"), async (ctx) => {

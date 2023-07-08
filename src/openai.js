@@ -22,9 +22,10 @@ class OpenAI {
   async chat(messages) {
     try {
       const response = await this.openai.createChatCompletion({
-        model: "gpt-3.5-turbo",
+        model: "gpt-4",
         messages,
       });
+      console.log(response.data)
       return response.data.choices[0].message;
     } catch (error) {
       console.error(`${new Date()} - Error while chat GPT: ${error.message}`);
@@ -60,6 +61,19 @@ class OpenAI {
     } catch (error) {
       console.error(
         `${new Date()} - Error while creating image ${error.message}`
+      );
+      throw error;
+    }
+  }
+
+  async askModels() {
+    try {
+      const response = await this.openai.listModels();
+      console.log(response.data);
+      return response;
+    } catch (error) {
+      console.error(
+        `${new Date()} - Error while asking for models list ${error.message}`
       );
       throw error;
     }
