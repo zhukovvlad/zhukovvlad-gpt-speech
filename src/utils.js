@@ -7,3 +7,8 @@ export async function removeFile(path) {
     console.log("Error while remove file", error.message);
   }
 }
+
+export const logError = (operation, error) => {
+  console.error(`${new Date()} - Error while ${operation}: ${error.message}`);
+  throw error
+}

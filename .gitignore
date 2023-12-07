@@ -1,6 +1,12 @@
 .idea
 .env
+.vscode
+.vercel
+
+
 node_modules
 config/default.json
 config/production.json
-.vscode
+/voices
+errors gpt.txt
+

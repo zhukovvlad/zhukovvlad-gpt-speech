@@ -1,11 +1,23 @@
-import { Telegraf, Markup, session, Scenes } from "telegraf";
+/**
+ * @fileoverview Main module for the Telegram bot using Telegraf.js. This bot integrates with OpenAI's
+ * services for various functionalities like chatting, transcription, image generation, and querying models.
+ * It uses MongoDB for user data management and OpenAI's API for advanced AI features.
+ */
+
+import { Telegraf, session, Scenes } from "telegraf";
 import { message } from "telegraf/filters";
 import { code } from "telegraf/format";
 import * as fs from "fs";
 import * as dotenv from "dotenv";
-import { ogg } from "./ogg.js";
-import { openai } from "./openai.js";
 
+import { ogg } from "./ogg.js";
+import {
+  chatWithBot,
+  transcription,
+  makeImage,
+  askModels,
+  roles,
+} from "./openai.js";
 import {
   findOrCreateUser,
   addOrUpdateArrayField,
@@ -17,82 +29,108 @@ import { removeFile } from "./utils.js";
 
 dotenv.config();
 
-// const INITIAL_SESSION = {
-//   messages: [],
-// };
-
+// Establish MongoDB connection
 connect();
 
+/**
+ * The main Telegram bot object using Telegraf framework.
+ * @type {Telegraf}
+ */
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
 
+// Scenes for managing bot's conversation states
 const { BaseScene, Stage } = Scenes;
 
+/**
+ * The paint scene for handling image generation requests.
+ * @type {BaseScene}
+ */
 const paintScene = new BaseScene("paint");
 
+// Setting up the paint scene
 paintScene.enter((ctx) => {
   ctx.reply(
     "You have entered the paint mode! Write any promt you want. For exit from this mode use command '/quit'"
   );
 });
-paintScene.on(message("text"), async (ctx) => {
-  if (ctx.message.text === "/quit") {
-    ctx.scene.leave();
-    ctx.reply("You have left the paint mode");
-  } else {
-    ctx.reply("I received your promt. Let's try to draw it!");
 
-    const response = await openai.makeImage(ctx.message.text);
-    await ctx.replyWithPhoto(response);
+// Handling text messages in the paint scene
+paintScene.on(message("text"), async (ctx) => {
+  const user = await findOrCreateUser(ctx.chat);
+
+  try {
+    if (ctx.message.text === "/quit") {
+      ctx.scene.leave();
+      ctx.reply("You have left the paint mode");
+    } else {
+      ctx.reply("I received your promt. Let's try to draw it!");
+
+      const response = await makeImage(ctx.message.text);
+      await ctx.replyWithPhoto(response.url);
+      await ctx.reply(response.revised_prompt);
+    }
+  } catch (error) {
+    console.error(
+      `${new Date()} - OpenAI API painting chat returned error. ${error}`
+    );
+    ctx.reply(
+      `${new Date()} - OpenAI API painting chat returned error. ${
+        error.message
+      }`
+    );
+    ctx.scene.enter("paint");
   }
 });
 
+// Handling voice messages in the paint scene
 paintScene.on(message("voice"), async (ctx) => {
   const user = await findOrCreateUser(ctx.chat);
 
-  await ctx.reply(
-    code("I received your message. Waiting response from server")
-  );
-  const link = await ctx.telegram.getFileLink(ctx.message.voice.file_id);
-  const userId = String(ctx.message.from.id);
-  const oggPath = await ogg.create(link.href, userId);
-  const mp3Path = await ogg.toMp3(oggPath, userId);
-
-  const text = await openai.transcription(mp3Path);
-  await ctx.reply(code(`Your message is: ${text}`));
-
-  await ctx.persistentChatAction("typing", async () => {
-    const response = await openai.makeImage(text);
-
-    if (!response) {
-      console.error(`${new Date()} - OpenAI API voice chat returned undefined`);
-      return;
-    }
-
-    // const gptAnswer = {
-    //   role: openai.roles.ASSISTANT,
-    //   content: response.content,
-    // };
-    // await addOrUpdateArrayField(user.id, "messages", gptAnswer);
-    await ctx.replyWithPhoto(response);
-  });
-
-  await removeFile(mp3Path);
   try {
+    await ctx.reply(
+      code("I received your message. Waiting response from server")
+    );
+    const link = await ctx.telegram.getFileLink(ctx.message.voice.file_id);
+    const userId = String(ctx.message.from.id);
+    const oggPath = await ogg.create(link.href, userId);
+    const mp3Path = await ogg.toMp3(oggPath, userId);
+
+    const text = await transcription(mp3Path);
+    await ctx.reply(code(`Your message is: ${text}`));
+
+    await ctx.persistentChatAction("typing", async () => {
+      const response = await makeImage(text);
+
+      if (!response) {
+        console.error(
+          `${new Date()} - OpenAI API voice chat returned undefined`
+        );
+        return;
+      }
+
+      await ctx.replyWithPhoto(response);
+      await ctx.reply(response.revised_prompt);
+    });
+
+    await removeFile(mp3Path);
   } catch (error) {
-    console.log("Error while voice message", error.message);
+    console.log(`${new Date()} - OpenAI API voice chat returned error. ${error.message}`)
     ctx.reply(
       `${new Date()} - OpenAI API voice chat returned error. ${error.message}`
     );
-    throw error;
+    ctx.scene.enter("paint")
   }
 });
+
+// Quit command for the paint scene
 paintScene.command("quit", (ctx) => ctx.scene.leave());
 
+// Setting up stages for the bot
 const stage = new Stage([paintScene]);
 bot.use(session());
 bot.use(stage.middleware());
 
-// bot.use(session());
+// Defining bot commands
 bot.telegram.setMyCommands([
   {
     command: "start",
@@ -108,48 +146,43 @@ bot.telegram.setMyCommands([
   },
 ]);
 
+// Start command logic
 bot.command("start", async (ctx) => {
-  // ctx.session = INITIAL_SESSION;
   try {
     const photoPath = fs.readFileSync("./src/assets/image.png");
 
     await ctx.replyWithPhoto(
       { source: photoPath },
       {
-        caption: `Greetings *${ctx.message.from.first_name}*! Here you can ask questions to the GPT chat, using text or voice messages. Unfortunately, we have not yet gained access to the *GPT-4* API and are using the "gpt-3.5-turbo" model for responses.`,
+        caption: `Greetings *${ctx.message.from.first_name}*! Here you can ask questions to the GPT chat, using text or voice messages. We are using *GPT-4-turbo* model API for text responses and "dall-e-3" model for image generation.`,
         parse_mode: "Markdown",
-        // ...Markup.inlineKeyboard([
-        //   Markup.button.callback("Опция 1", "OPTION_1"),
-        //   Markup.button.callback("Опция 2", "OPTION_2"),
-        // ]),
       }
     );
   } catch (error) {
     console.error(`${new Date()} - Something went wrong while start`);
-    throw error;
   }
 });
 
-bot.action("OPTION_1", (ctx) => ctx.answerCbQuery("Вы выбрали опцию 1"));
-bot.action("OPTION_2", (ctx) => ctx.answerCbQuery("Вы выбрали опцию 2"));
-
+// Paint command logic
 bot.command("paint", (ctx) => ctx.scene.enter("paint"));
 
+// Clear command logic
 bot.command("clear", async (ctx) => {
   const user = await findOrCreateUser(ctx.chat);
   await clearArrayField(user.id, "messages");
   await ctx.reply("I succesfully clearened up all your context");
 });
 
+// Models command logic
 bot.command("models", async (ctx) => {
-  await openai.askModels();
+  await askModels();
   await ctx.reply(
     "I've asked for all possible chat models. Look into your console"
   );
 });
 
+// Handling voice messages globally
 bot.on(message("voice"), async (ctx) => {
-  // ctx.session ??= INITIAL_SESSION;
   const user = await findOrCreateUser(ctx.chat);
   try {
     await ctx.reply(
@@ -160,10 +193,10 @@ bot.on(message("voice"), async (ctx) => {
     const oggPath = await ogg.create(link.href, userId);
     const mp3Path = await ogg.toMp3(oggPath, userId);
 
-    const text = await openai.transcription(mp3Path);
+    const text = await transcription(mp3Path);
     await ctx.reply(code(`Your message is: ${text}`));
 
-    const userQuestion = { role: openai.roles.USER, content: text };
+    const userQuestion = { role: roles.USER, content: text };
     const updatedUser = await addOrUpdateArrayField(
       user.id,
       "messages",
@@ -174,7 +207,7 @@ bot.on(message("voice"), async (ctx) => {
 
     // ctx.session.messages.push({ role: openai.roles.USER, content: text });
     await ctx.persistentChatAction("typing", async () => {
-      const response = await openai.chat(updatedUser.messages);
+      const response = chatWithBot(updatedUser.messages);
 
       if (!response) {
         console.error(
@@ -190,7 +223,7 @@ bot.on(message("voice"), async (ctx) => {
       }
 
       const gptAnswer = {
-        role: openai.roles.ASSISTANT,
+        role: roles.ASSISTANT,
         content: response.content,
       };
 
@@ -232,16 +265,14 @@ bot.on(message("voice"), async (ctx) => {
     ctx.reply(
       `${new Date()} - OpenAI API voice chat returned error. ${error.message}`
     );
-    throw error;
   }
 });
 
+// Handling text messages globally
 bot.on(message("text"), async (ctx) => {
   // ctx.session ??= INITIAL_SESSION;
   const user = await findOrCreateUser(ctx.chat);
-  // console.log(user);
-  // const data = { id: user.id, count: user.count ? ++user.count : 1 };
-  // user = await fetchUser(data);
+
   try {
     await ctx.reply(
       code("I received your message. Waiting response from server")
@@ -249,9 +280,7 @@ bot.on(message("text"), async (ctx) => {
 
     const text = ctx.message.text;
 
-    // ctx.session.messages.push({ role: openai.roles.USER, content: text });
-
-    const userQuestion = { role: openai.roles.USER, content: text };
+    const userQuestion = { role: roles.USER, content: text };
     const updatedUser = await addOrUpdateArrayField(
       user.id,
       "messages",
@@ -260,7 +289,7 @@ bot.on(message("text"), async (ctx) => {
 
     ctx.sendChatAction("typing");
 
-    const response = await openai.chat(updatedUser.messages);
+    const response = await chatWithBot(updatedUser.messages);
 
     ctx.sendChatAction("typing");
 
@@ -268,7 +297,7 @@ bot.on(message("text"), async (ctx) => {
       console.error(`${new Date()} - OpenAI API text chat returned undefined`);
       return;
     }
-    if (!response.content) {
+    if (!response.message.content) {
       console.error(
         `${new Date()} - OpenAI API text chat response does not contain 'content'`
       );
@@ -276,28 +305,28 @@ bot.on(message("text"), async (ctx) => {
     }
 
     const gptAnswer = {
-      role: openai.roles.ASSISTANT,
-      content: response.content,
+      role: roles.ASSISTANT,
+      content: response.message.content,
     };
 
     await addOrUpdateArrayField(user.id, "messages", gptAnswer);
 
-    // ctx.session.messages.push({
-    //   role: openai.roles.ASSISTANT,
-    //   content: response.content,
-    // });
-    await ctx.reply(response.content);
+    await ctx.reply(response.message.content);
   } catch (error) {
-    console.log("Error while text message", error.message);
+    console.error("Error while text message", error.message);
   }
 });
 
+// Launching the bot
 bot.launch();
 
+// Handling SIGINT for graceful shutdown
 process.once("SIGINT", async () => {
   await disconnect();
   bot.stop("SIGINT");
 });
+
+// Handling SIGTERM for graceful shutdown
 process.once("SIGTERM", async () => {
   await disconnect();
   bot.stop("SIGTERM");
