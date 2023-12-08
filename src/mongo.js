@@ -18,10 +18,7 @@ let client;
  */
 export async function connect() {
   if (!client) {
-    client = new MongoClient(process.env.MONGODB, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    client = new MongoClient(process.env.MONGODB);
   }
   try {
     await client.connect();
