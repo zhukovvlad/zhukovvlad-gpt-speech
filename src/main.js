@@ -114,11 +114,13 @@ paintScene.on(message("voice"), async (ctx) => {
 
     await removeFile(mp3Path);
   } catch (error) {
-    console.log(`${new Date()} - OpenAI API voice chat returned error. ${error.message}`)
+    console.error(
+      `${new Date()} - OpenAI API voice chat returned error. ${error.message}`
+    );
     ctx.reply(
       `${new Date()} - OpenAI API voice chat returned error. ${error.message}`
     );
-    ctx.scene.enter("paint")
+    ctx.scene.enter("paint");
   }
 });
 
@@ -194,6 +196,7 @@ bot.on(message("voice"), async (ctx) => {
     const mp3Path = await ogg.toMp3(oggPath, userId);
 
     const text = await transcription(mp3Path);
+
     await ctx.reply(code(`Your message is: ${text}`));
 
     const userQuestion = { role: roles.USER, content: text };
@@ -207,7 +210,7 @@ bot.on(message("voice"), async (ctx) => {
 
     // ctx.session.messages.push({ role: openai.roles.USER, content: text });
     await ctx.persistentChatAction("typing", async () => {
-      const response = chatWithBot(updatedUser.messages);
+      const response = await chatWithBot(updatedUser.messages);
 
       if (!response) {
         console.error(
@@ -215,53 +218,28 @@ bot.on(message("voice"), async (ctx) => {
         );
         return;
       }
-      if (!response.content) {
+      if (!response.message.content) {
         console.error(
           `${new Date()} - OpenAI API voice chat response does not contain 'content'`
         );
         return;
       }
+      await ctx.reply(response.message.content);
 
       const gptAnswer = {
         role: roles.ASSISTANT,
-        content: response.content,
+        content: response.message.content,
       };
 
       await addOrUpdateArrayField(user.id, "messages", gptAnswer);
 
-      await ctx.reply(response.content);
     });
-    // const response = await openai.chat(updatedUser.messages);
-
-    // ctx.sendChatAction("typing");
 
     await removeFile(mp3Path);
-
-    // if (!response) {
-    //   console.error(`${new Date()} - OpenAI API voice chat returned undefined`);
-    //   return;
-    // }
-    // if (!response.content) {
-    //   console.error(
-    //     `${new Date()} - OpenAI API voice chat response does not contain 'content'`
-    //   );
-    //   return;
-    // }
-
-    // const gptAnswer = {
-    //   role: openai.roles.ASSISTANT,
-    //   content: response.content,
-    // };
-
-    // await addOrUpdateArrayField(user.id, "messages", gptAnswer);
-
-    // ctx.session.messages.push({
-    //   role: openai.roles.ASSISTANT,
-    //   content: response.content,
-    // });
-    // await ctx.reply(response.content);
   } catch (error) {
-    console.log("Error while voice message", error.message);
+    console.error(
+      `${new Date()} - OpenAI API voice chat returned error., ${error.message}`
+    );
     ctx.reply(
       `${new Date()} - OpenAI API voice chat returned error. ${error.message}`
     );
@@ -270,7 +248,6 @@ bot.on(message("voice"), async (ctx) => {
 
 // Handling text messages globally
 bot.on(message("text"), async (ctx) => {
-  // ctx.session ??= INITIAL_SESSION;
   const user = await findOrCreateUser(ctx.chat);
 
   try {
@@ -287,31 +264,30 @@ bot.on(message("text"), async (ctx) => {
       userQuestion
     );
 
-    ctx.sendChatAction("typing");
+    await ctx.persistentChatAction("typing", async () => {
+      const response = await chatWithBot(updatedUser.messages);
 
-    const response = await chatWithBot(updatedUser.messages);
+      if (!response) {
+        console.error(
+          `${new Date()} - OpenAI API text chat returned undefined`
+        );
+        return;
+      }
+      if (!response.message.content) {
+        console.error(
+          `${new Date()} - OpenAI API text chat response does not contain 'content'`
+        );
+        return;
+      }
+      await ctx.reply(response.message.content);
 
-    ctx.sendChatAction("typing");
+      const gptAnswer = {
+        role: roles.ASSISTANT,
+        content: response.message.content,
+      };
 
-    if (!response) {
-      console.error(`${new Date()} - OpenAI API text chat returned undefined`);
-      return;
-    }
-    if (!response.message.content) {
-      console.error(
-        `${new Date()} - OpenAI API text chat response does not contain 'content'`
-      );
-      return;
-    }
-
-    const gptAnswer = {
-      role: roles.ASSISTANT,
-      content: response.message.content,
-    };
-
-    await addOrUpdateArrayField(user.id, "messages", gptAnswer);
-
-    await ctx.reply(response.message.content);
+      await addOrUpdateArrayField(user.id, "messages", gptAnswer);
+    });
   } catch (error) {
     console.error("Error while text message", error.message);
   }

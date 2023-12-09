@@ -68,7 +68,8 @@ const transcription = async (filePath) => {
       model: models.SPEECHMODEL,
       file: createReadStream(filePath),
     });
-    return response.data.text;
+
+    return response.text;
   } catch (error) {
     logError("transcription from voice to text", error);
   }
